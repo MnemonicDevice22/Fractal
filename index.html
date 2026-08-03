@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Fractal</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0D0D0D">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas: #0D0D0D;
+    --ink: #EDE7DC;
+    --muted: #837C72;
+    --accent: #D9A63F;
+    --core: #FDF0C8;
+    --bubble: #3A2E12;
+    --line: rgba(237,231,220,.09);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    font-size: 16px;
+  }
+
+  header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--canvas);
+  }
+  .title { font-weight: 700; color: var(--accent); font-size: 18px; }
+  .count { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .menu-btn {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 999px;
+  }
+
+  #panel {
+    display: none;
+    flex: none;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  #panel.open { display: flex; }
+  #panel button {
+    background: none; border: 1px solid var(--line); color: var(--ink);
+    font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px;
+  }
+  #panel .note { width: 100%; font-size: 11px; color: var(--muted); }
+
+  main {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 12px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .day {
+    align-self: center;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 12px 0 6px;
+  }
+
+  .item {
+    align-self: flex-end;
+    max-width: 86%;
+    background: var(--bubble);
+    border-radius: 14px 14px 4px 14px;
+    padding: 9px 12px 7px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+    animation: rise .16s ease-out;
+  }
+  .item.sel { outline: 2px solid var(--accent); }
+  .stamp { display: block; font-size: 10px; color: var(--muted); text-align: right; margin-top: 3px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .empty {
+    margin: auto;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 24ch;
+    line-height: 1.5;
+  }
+  .empty b { color: var(--ink); display: block; margin-bottom: 4px; }
+
+  footer {
+    flex: none;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px);
+    border-top: 1px solid var(--line);
+    background: var(--canvas);
+  }
+  textarea {
+    flex: 1;
+    resize: none;
+    background: #171717;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 10px 14px;
+    font: inherit;
+    line-height: 1.4;
+    max-height: 40vh;
+    min-height: 42px;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  #send {
+    flex: none;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: #0D0D0D;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  #send:disabled { opacity: .35; }
+
+  #warn {
+    display: none;
+    background: #4A1F1F; color: #FFD9D9;
+    font-size: 12px; padding: 8px 14px; text-align: center;
+  }
+  #warn.show { display: block; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">Fractal</span>
+  <button class="menu-btn" id="menuBtn">Data</button>
+  <span class="count" id="count"></span>
+</header>
+
+<div id="warn"></div>
+
+<div id="panel">
+  <button id="exportBtn">Export JSON</button>
+  <button id="copyBtn">Copy JSON</button>
+  <button id="importBtn">Import JSON</button>
+  <button id="deleteBtn">Delete selected</button>
+  <span class="note">Import merges by ID. Nothing is overwritten or replaced.</span>
+  <input type="file" id="file" accept="application/json,.json" hidden>
+</div>
+
+<main id="feed"></main>
+
+<footer>
+  <textarea id="box" rows="1" placeholder="Things to do" enterkeyhint="enter"></textarea>
+  <button id="send" disabled>&#8593;</button>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var APP = "fractal";
+  var PREFIX = "f";
+  var SCHEMA = 1;
+  var KEY = APP + "_items_v1";
+  var DRAFT = APP + "_draft_v1";
+
+  var feed = document.getElementById("feed");
+  var box = document.getElementById("box");
+  var send = document.getElementById("send");
+  var countEl = document.getElementById("count");
+  var panel = document.getElementById("panel");
+  var warn = document.getElementById("warn");
+  var fileInput = document.getElementById("file");
+
+  var items = [];
+  var selected = null;
+
+  /* ---------- storage ---------- */
+
+  function flash(msg) {
+    warn.textContent = msg;
+    warn.classList.add("show");
+  }
+
+  function load() {
+    var raw;
+    try { raw = localStorage.getItem(KEY); }
+    catch (e) { flash("Storage is blocked here. Items will not persist."); return; }
+    if (!raw) return;
+    try {
+      var parsed = JSON.parse(raw);
+      items = Array.isArray(parsed) ? parsed : (parsed.items || []);
+    } catch (e) {
+      flash("Saved data could not be read. Nothing was deleted \u2014 export before adding more.");
+    }
+  }
+
+  function save() {
+    var payload = JSON.stringify({ schema: SCHEMA, app: APP, items: items });
+    try {
+      localStorage.setItem(KEY, payload);
+      // read back: a silent write failure is the one thing this app cannot do
+      if (localStorage.getItem(KEY) !== payload) throw new Error("verify failed");
+      warn.classList.remove("show");
+      return true;
+    } catch (e) {
+      flash("Could not save. Export now before typing anything else.");
+      return false;
+    }
+  }
+
+  function newId() {
+    return PREFIX + "-" + Date.now().toString(36) + "-" +
+           Math.random().toString(36).slice(2, 7);
+  }
+
+  /* ---------- rendering ---------- */
+
+  function dayLabel(ts) {
+    var d = new Date(ts), now = new Date();
+    var a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var diff = Math.round((b - a) / 86400000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function timeLabel(ts) {
+    return new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+
+  function render() {
+    feed.innerHTML = "";
+    countEl.textContent = items.length ? items.length + " item" + (items.length === 1 ? "" : "s") : "";
+
+    if (!items.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.innerHTML = "<b>Nothing captured yet</b>Type below and send. Every send is stored as its own item.";
+      feed.appendChild(e);
+      return;
+    }
+
+    var lastDay = null;
+    items.forEach(function (it) {
+      var label = dayLabel(it.created_at);
+      if (label !== lastDay) {
+        var sep = document.createElement("div");
+        sep.className = "day";
+        sep.textContent = label;
+        feed.appendChild(sep);
+        lastDay = label;
+      }
+      var el = document.createElement("div");
+      el.className = "item" + (selected === it.id ? " sel" : "");
+      el.dataset.id = it.id;
+      el.textContent = it.text;
+      var s = document.createElement("span");
+      s.className = "stamp";
+      s.textContent = timeLabel(it.created_at);
+      el.appendChild(s);
+      feed.appendChild(el);
+    });
+
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  /* ---------- capture ---------- */
+
+  function add() {
+    var text = box.value.trim();
+    if (!text) return;
+    items.push({ id: newId(), text: text, created_at: Date.now() });
+    if (!save()) { items.pop(); return; }
+    box.value = "";
+    try { localStorage.removeItem(DRAFT); } catch (e) {}
+    autosize();
+    send.disabled = true;
+    render();
+  }
+
+  function autosize() {
+    box.style.height = "auto";
+    box.style.height = Math.min(box.scrollHeight, window.innerHeight * 0.4) + "px";
+  }
+
+  box.addEventListener("input", function () {
+    autosize();
+    send.disabled = !box.value.trim();
+    try { localStorage.setItem(DRAFT, box.value); } catch (e) {}
+  });
+
+  send.addEventListener("click", add);
+
+  /* ---------- select and delete ---------- */
+
+  var pressTimer = null;
+  feed.addEventListener("touchstart", function (ev) {
+    var el = ev.target.closest(".item");
+    if (!el) return;
+    pressTimer = setTimeout(function () {
+      selected = (selected === el.dataset.id) ? null : el.dataset.id;
+      panel.classList.add("open");
+      render();
+    }, 500);
+  }, { passive: true });
+
+  ["touchend", "touchmove", "touchcancel"].forEach(function (t) {
+    feed.addEventListener(t, function () { clearTimeout(pressTimer); }, { passive: true });
+  });
+
+  feed.addEventListener("contextmenu", function (ev) {
+    var el = ev.target.closest(".item");
+    if (!el) return;
+    ev.preventDefault();
+    selected = (selected === el.dataset.id) ? null : el.dataset.id;
+    panel.classList.add("open");
+    render();
+  });
+
+  document.getElementById("deleteBtn").addEventListener("click", function () {
+    if (!selected) { alert("Long press an item to select it first."); return; }
+    var it = items.filter(function (x) { return x.id === selected; })[0];
+    if (!it) return;
+    if (!confirm("Delete this item permanently?\n\n" + it.text.slice(0, 120))) return;
+    items = items.filter(function (x) { return x.id !== selected; });
+    selected = null;
+    save();
+    render();
+  });
+
+  /* ---------- export and import ---------- */
+
+  function bundle() {
+    return JSON.stringify({
+      schema: SCHEMA,
+      app: APP,
+      exported_at: new Date().toISOString(),
+      count: items.length,
+      items: items
+    }, null, 2);
+  }
+
+  document.getElementById("menuBtn").addEventListener("click", function () {
+    panel.classList.toggle("open");
+  });
+
+  document.getElementById("exportBtn").addEventListener("click", function () {
+    var stamp = new Date().toISOString().slice(0, 10);
+    var blob = new Blob([bundle()], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = APP + "-" + stamp + ".json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    var text = bundle();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(
+        function () { flash("Copied " + items.length + " items to the clipboard."); },
+        function () { window.prompt("Copy this:", text); }
+      );
+    } else {
+      window.prompt("Copy this:", text);
+    }
+  });
+
+  document.getElementById("importBtn").addEventListener("click", function () {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener("change", function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var incoming;
+      try {
+        var parsed = JSON.parse(reader.result);
+        incoming = Array.isArray(parsed) ? parsed : parsed.items;
+      } catch (e) { alert("That file could not be read as JSON."); return; }
+      if (!Array.isArray(incoming)) { alert("No items found in that file."); return; }
+
+      var have = {};
+      items.forEach(function (x) { have[x.id] = true; });
+      var added = 0;
+      incoming.forEach(function (x) {
+        if (!x || typeof x.text !== "string") return;
+        var id = x.id || newId();
+        if (have[id]) return;
+        items.push({ id: id, text: x.text, created_at: x.created_at || Date.now() });
+        have[id] = true;
+        added++;
+      });
+      items.sort(function (a, b) { return a.created_at - b.created_at; });
+      save();
+      render();
+      alert("Added " + added + " new item" + (added === 1 ? "" : "s") +
+            ". " + (incoming.length - added) + " already present.");
+    };
+    reader.readAsText(f);
+    fileInput.value = "";
+  });
+
+  /* ---------- boot ---------- */
+
+  // Android Chrome grants persistent storage to installed apps that ask.
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted().then(function (already) {
+      if (!already) navigator.storage.persist();
+    });
+  }
+
+  load();
+  items.sort(function (a, b) { return a.created_at - b.created_at; });
+  try {
+    var d = localStorage.getItem(DRAFT);
+    if (d) { box.value = d; send.disabled = !d.trim(); autosize(); }
+  } catch (e) {}
+  // text shared into the app from anywhere else on the phone
+  try {
+    var shared = new URLSearchParams(location.search);
+    var incoming = [shared.get("title"), shared.get("text"), shared.get("url")]
+      .filter(Boolean).join("\n").trim();
+    if (incoming) {
+      items.push({ id: newId(), text: incoming, created_at: Date.now() });
+      save();
+      history.replaceState(null, "", location.pathname);
+    }
+  } catch (e) {}
+
+  render();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
