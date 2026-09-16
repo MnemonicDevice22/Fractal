@@ -1,0 +1,29 @@
+{
+  "name": "Fractal",
+  "short_name": "Fractal",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0D0D0D",
+  "theme_color": "#0D0D0D",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}

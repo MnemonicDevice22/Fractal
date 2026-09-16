@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fractal</title>
+<meta name="theme-color" content="#0D0D0D">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-512.png">
+<style>
+@font-face{
+  font-family:"Atkinson";
+  src:url("font.woff2") format("woff2");
+  font-weight:400;
+  font-display:block;
+}
+:root{
+  --canvas:#0D0D0D;
+  --hot:#F0C766;
+  --mid:#D9A63F;
+  --deep:#8A6420;
+  --core:#FDF0C8;
+
+  --text:#D8CDB6;
+  --dim:#948A76;
+  --faint:#645B4B;
+
+  --raise:#16130D;
+  --line:#241F15;
+  --empty:#241C10;
+
+  --danger:#C4674F;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:var(--canvas);
+  color:var(--text);
+  font-family:"Atkinson",system-ui,-apple-system,sans-serif;
+  font-size:16px;
+  line-height:1.5;
+  max-width:560px;
+  margin:0 auto;
+  display:flex;
+  flex-direction:column;
+  min-height:100dvh;
+  overflow-x:hidden;
+}
+button,input{font:inherit;color:inherit}
+button{background:none;border:none;cursor:pointer}
+input{background:none;border:none;outline:none;width:100%}
+
+/* ── chrome ── */
+.topbar{
+  padding:18px 20px 10px;
+  display:flex;align-items:baseline;justify-content:space-between;
+}
+.brand{font-size:20px;font-weight:700;letter-spacing:-.01em;color:var(--hot)}
+.brand-sub{font-size:12.5px;color:var(--faint)}
+
+main{flex:1;padding:0 16px 150px}
+.view{display:none}
+.view.on{display:block}
+
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  max-width:560px;margin:0 auto;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  background:#0A0A0A;
+  border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.tab{
+  padding:13px 4px 15px;
+  font-size:13px;color:var(--faint);
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+}
+.tab .glyph{width:18px;height:18px;display:block}
+.tab.on{color:var(--hot)}
+.tab.settings.on{color:var(--deep)}
+
+/* ── shared blocks ── */
+.section{margin:26px 0 0}
+.section-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  padding:0 4px 12px;
+}
+.section-title{font-size:13px;color:var(--dim);letter-spacing:.02em}
+.section-note{font-size:12px;color:var(--faint)}
+
+.hint{font-size:12px;color:var(--faint);padding:10px 4px 0;line-height:1.5}
+
+.empty{
+  padding:34px 22px;text-align:center;color:var(--faint);
+  font-size:14px;line-height:1.65;
+}
+.empty strong{display:block;color:var(--dim);font-weight:700;margin-bottom:5px;font-size:15px}
+
+/* ── card ── */
+.card{
+  background:var(--raise);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:16px 16px 14px;
+  margin-bottom:11px;
+  position:relative;
+}
+.card.sel{border-color:var(--deep);background:#1D1710}
+.card-top{display:flex;align-items:flex-start;gap:12px}
+.card-label{flex:1;min-width:0;font-size:16px;line-height:1.35;word-break:break-word}
+.card-cat{font-size:11.5px;color:var(--faint);margin-top:4px}
+.card-bottom{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:14px;margin-top:15px;
+}
+
+/* ── state pill ── */
+.pill{
+  font-size:12.5px;padding:7px 14px;border-radius:999px;
+  border:1px solid var(--line);color:var(--dim);
+  background:#120F0A;white-space:nowrap;flex-shrink:0;
+}
+.pill.due{color:var(--hot);border-color:#453314;background:#241B08}
+.pill.doing{color:var(--canvas);background:var(--hot);border-color:var(--hot);font-weight:700}
+.pill:active{transform:scale(.96)}
+
+/* ── duration badge ── */
+.dur{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.grid{display:grid;grid-template-columns:repeat(6,10px);gap:3px}
+.grid .u{width:10px;height:10px;border-radius:2px;background:var(--empty)}
+.grid .u.on{background:var(--hot)}
+.dur-num{
+  font-size:13px;color:var(--dim);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.dur-long{font-size:15px;color:var(--hot);font-variant-numeric:tabular-nums}
+.dur-set{font-size:12.5px;color:var(--faint);text-decoration:underline;text-underline-offset:3px}
+.lockmark{font-size:11px;color:var(--faint)}
+
+/* ── focus slots ── */
+.slot-n{
+  position:absolute;top:16px;right:16px;
+  font-size:11px;color:var(--faint);
+}
+
+/* ── extras ── */
+.extra{
+  display:flex;align-items:flex-start;gap:13px;
+  padding:14px 4px;border-bottom:1px solid var(--line);
+}
+.box{
+  width:21px;height:21px;border-radius:6px;flex-shrink:0;margin-top:1px;
+  border:1.5px solid #3A3123;
+}
+.box.on{background:var(--hot);border-color:var(--hot)}
+.box svg{width:100%;height:100%;display:block;opacity:0}
+.box.on svg{opacity:1}
+.extra-text{flex:1;min-width:0;word-break:break-word;font-size:15.5px}
+.extra.done .extra-text{color:var(--faint);text-decoration:line-through}
+
+/* ── composer ── */
+.compose{
+  display:flex;align-items:center;gap:10px;
+  background:var(--raise);border:1px solid var(--line);
+  border-radius:13px;padding:12px 14px;margin-top:14px;
+}
+.compose input{font-size:15.5px}
+.compose input::placeholder{color:var(--faint)}
+.compose .send{
+  color:var(--hot);font-size:14px;flex-shrink:0;padding:2px 2px 2px 8px;
+}
+.compose .send:disabled{color:var(--faint)}
+
+.catrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.cat{
+  font-size:12.5px;padding:6px 13px;border-radius:999px;
+  border:1px solid var(--line);color:var(--faint);
+}
+.cat.on{color:var(--hot);border-color:#453314;background:#241B08}
+
+/* ── running bar ── */
+.running{
+  position:fixed;left:0;right:0;z-index:29;
+  bottom:calc(63px + env(safe-area-inset-bottom));
+  max-width:560px;margin:0 auto;
+  background:#1E1708;border-top:1px solid var(--deep);
+  padding:14px 18px;
+  display:none;align-items:center;gap:14px;
+}
+.running.on{display:flex}
+.running-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.running-time{font-size:20px;color:var(--hot);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.running-stop{
+  background:var(--hot);color:var(--canvas);font-weight:700;
+  padding:9px 18px;border-radius:999px;font-size:14px;flex-shrink:0;
+}
+
+/* ── action bar (multi-select) ── */
+.actionbar{
+  position:fixed;left:0;right:0;z-index:31;
+  bottom:calc(63px + env(safe-area-inset-bottom));
+  max-width:560px;margin:0 auto;
+  background:#241014;border-top:1px solid #4A2028;
+  padding:14px 18px;display:none;align-items:center;justify-content:space-between;
+}
+.actionbar.on{display:flex}
+.actionbar .n{font-size:14px;color:var(--text)}
+.actionbar .del{color:var(--danger);font-size:14px;font-weight:700}
+
+/* ── sheet ── */
+.scrim{
+  position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.72);
+  opacity:0;pointer-events:none;transition:opacity .18s;
+}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:41;
+  max-width:560px;margin:0 auto;
+  background:#151209;border-top:1px solid var(--line);
+  border-radius:20px 20px 0 0;
+  padding:10px 20px calc(26px + env(safe-area-inset-bottom));
+  transform:translateY(102%);transition:transform .22s cubic-bezier(.2,.8,.3,1);
+  max-height:88dvh;overflow-y:auto;
+}
+.sheet.on{transform:none}
+.grip{width:38px;height:4px;border-radius:2px;background:#332C1E;margin:0 auto 20px}
+.sheet h2{font-size:17px;font-weight:700;margin-bottom:4px;color:var(--text)}
+.sheet .sub{font-size:13px;color:var(--faint);margin-bottom:20px;line-height:1.55}
+.field{
+  background:#0E0C07;border:1px solid var(--line);border-radius:11px;
+  padding:13px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;
+}
+.field input{font-size:16px}
+.field .unit{font-size:14px;color:var(--faint);flex-shrink:0}
+.sheet-btn{
+  display:block;width:100%;text-align:center;
+  padding:14px;border-radius:12px;font-size:15px;
+  background:#211A0C;border:1px solid var(--line);color:var(--text);
+  margin-top:10px;
+}
+.sheet-btn.primary{background:var(--hot);color:var(--canvas);font-weight:700;border-color:var(--hot)}
+.sheet-btn.warn{color:var(--danger)}
+
+/* ── settings ── */
+.view.settings{color:#B4A489}
+.set-group{margin:28px 0 0}
+.set-title{font-size:13px;color:var(--deep);letter-spacing:.03em;padding:0 4px 11px;font-weight:700}
+.set-btn{
+  display:block;width:100%;text-align:left;
+  background:#120F0A;border:1px solid var(--line);
+  border-radius:12px;padding:15px 16px;margin-bottom:9px;
+}
+.set-btn .t{font-size:15px;color:#C6B693}
+.set-btn .d{font-size:12.5px;color:var(--faint);margin-top:3px;line-height:1.5}
+.set-btn.warn .t{color:var(--danger)}
+.howto{font-size:14px;color:#9C8F76;line-height:1.7;padding:0 4px}
+.howto p{margin-bottom:13px}
+.howto b{color:#C6B693;font-weight:700}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Fractal</div>
+  <div class="brand-sub" id="brandsub"></div>
+</div>
+
+<main>
+  <!-- ══ FOCUS ══ -->
+  <div class="view on" id="v-focus">
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Up next</div>
+        <div class="section-note" id="due-note"></div>
+      </div>
+      <div id="focus-slots"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Extras</div>
+        <button class="section-note" id="clear-extras" style="color:var(--dim)">Clear checked</button>
+      </div>
+      <div id="extras-list"></div>
+      <div class="compose">
+        <input id="extra-input" placeholder="Something one-off" enterkeyhint="done">
+        <button class="send" id="extra-send">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RECURRING ══ -->
+  <div class="view" id="v-recurring">
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Pantry</div>
+        <div class="section-note" id="task-count"></div>
+      </div>
+      <div id="task-list"></div>
+      <div class="compose">
+        <input id="task-input" placeholder="Add a chore" enterkeyhint="done">
+        <button class="send" id="task-send">Add</button>
+      </div>
+      <div class="catrow" id="catrow"></div>
+      <div class="hint">Tap the state to move it along. Hold a chore to select several.</div>
+    </div>
+  </div>
+
+  <!-- ══ SETTINGS ══ -->
+  <div class="view settings" id="v-settings">
+    <div class="set-group">
+      <div class="set-title">Data</div>
+      <button class="set-btn" id="s-export">
+        <div class="t">Export</div>
+        <div class="d">Saves everything to a JSON file. Do this before a version bump.</div>
+      </button>
+      <button class="set-btn" id="s-restore">
+        <div class="t">Restore</div>
+        <div class="d">Replaces everything in Fractal with a file. Nothing is merged.</div>
+      </button>
+      <input type="file" id="s-file" accept="application/json" hidden>
+    </div>
+
+    <div class="set-group">
+      <div class="set-title">App</div>
+      <button class="set-btn" id="s-update">
+        <div class="t">Force update</div>
+        <div class="d">Clears Fractal's cache and reloads. Your data is untouched.</div>
+      </button>
+    </div>
+
+    <div class="set-group">
+      <div class="set-title">Purge</div>
+      <button class="set-btn warn" id="s-purge-extras">
+        <div class="t">Delete all extras</div>
+        <div class="d">Clears the one-off list, checked or not.</div>
+      </button>
+      <button class="set-btn warn" id="s-purge-all">
+        <div class="t">Delete everything</div>
+        <div class="d">Chores, durations and extras. Export first.</div>
+      </button>
+    </div>
+
+    <div class="set-group">
+      <div class="set-title">How to use</div>
+      <div class="howto">
+        <p>Fractal holds the chores that never finish. You add one once, and it stays.</p>
+        <p>Each chore moves through three states. <b>Inactive</b> is resting. <b>Due</b> means it should happen soon. <b>In progress</b> means you're doing it right now, and a clock runs while you are.</p>
+        <p>Stop the clock and the time is saved next to the chore, then it goes back to Inactive. Six squares, ten minutes a square, two rows for the hour. Over an hour it just says the number.</p>
+        <p>Once you know how long something takes, <b>lock</b> it and the clock stops running for good. You can also type the time in yourself.</p>
+        <p><b>Up next</b> shows the first three that are Due. Finish one and the fourth takes its place.</p>
+        <p><b>Extras</b> are for the rare things that aren't chores. Tick them, then clear them.</p>
+        <p>Nothing here counts days or keeps score. It waits.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="running" id="running">
+  <div class="running-label" id="running-label"></div>
+  <div class="running-time" id="running-time">0:00</div>
+  <button class="running-stop" id="running-stop">Stop</button>
+</div>
+
+<div class="actionbar" id="actionbar">
+  <div class="n" id="sel-n"></div>
+  <button class="del" id="sel-del">Delete</button>
+</div>
+
+<nav class="tabbar">
+  <button class="tab on" data-tab="focus">
+    <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+    Focus
+  </button>
+  <button class="tab" data-tab="recurring">
+    <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 8a8 8 0 1 0 .8 6"/><polyline points="20 3 20 8 15 8"/></svg>
+    Recurring
+  </button>
+  <button class="tab settings" data-tab="settings">
+    <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1M18.6 18.6l-2.1-2.1M7.5 7.5L5.4 5.4"/></svg>
+    Settings
+  </button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"></div>
+
+<script>
+/* ═══════════ constants ═══════════ */
+const APP     = "fractal";
+const VERSION = 1;
+const CACHE   = `${APP}-v${VERSION}`;
+const PREFIX  = "f";
+const DATA    = PREFIX + "_data";
+
+const UNIT_MIN  = 10;            // minutes per square
+const UNITS     = 6;             // squares per row
+const ROWS      = 2;             // two rows = one hour
+const CAP_MIN   = UNIT_MIN * UNITS * ROWS;
+
+const CATS = ["Home", "Body", "Kitchen", "Errands", "Other"];
+
+/* ═══════════ storage ═══════════ */
+function migrate(d){
+  if(!d) return null;
+  d.schemaVersion = 1;
+  d.tasks  ||= [];
+  d.extras ||= [];
+  if(!("timer" in d)) d.timer = null;
+  return d;
+}
+const blank = () => ({ schemaVersion:1, tasks:[], extras:[], timer:null });
+
+let S = blank();
+
+function load(){
+  let raw = null;
+  try{ raw = localStorage.getItem(DATA); }catch{}
+  let d = null;
+  try{ d = raw ? JSON.parse(raw) : null; }catch{ d = null; }
+  S = migrate(d) || blank();
+}
+function save(){
+  const json = JSON.stringify(S);
+  try{
+    localStorage.setItem(DATA, json);
+    if(localStorage.getItem(DATA) !== json){
+      alert("SAVE FAILED — export your data now");
+      return false;
+    }
+  }catch{
+    alert("SAVE FAILED — export your data now");
+    return false;
+  }
+  return true;
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const buzz = ms => { try{ navigator.vibrate && navigator.vibrate(ms); }catch{} };
+
+/* ═══════════ duration badge ═══════════ */
+/* store seconds exact; round once, at the moment of display */
+function badge(t){
+  if(t.lastRun > 0){
+    const mins = Math.max(1, Math.round(t.lastRun / 60));
+    if(mins > CAP_MIN){
+      const h = Math.floor(mins / 60), m = mins % 60;
+      return `<div class="dur">
+        ${t.locked ? '<span class="lockmark">locked</span>' : ''}
+        <span class="dur-long">${h}h ${m}m</span></div>`;
+    }
+    const on = Math.min(UNITS*ROWS, Math.ceil(mins / UNIT_MIN));
+    let cells = "";
+    for(let i=0;i<UNITS*ROWS;i++) cells += `<div class="u${i<on?" on":""}"></div>`;
+    return `<div class="dur">
+      ${t.locked ? '<span class="lockmark">locked</span>' : ''}
+      <div class="grid">${cells}</div>
+      <span class="dur-num">${mins}m</span></div>`;
+  }
+  return `<div class="dur"><button class="dur-set" data-act="edit" data-id="${t.id}">set time</button></div>`;
+}
+
+/* ═══════════ state machine ═══════════ */
+const NEXT = { inactive:"due", due:"doing", doing:"inactive" };
+const NAME = { inactive:"Inactive", due:"Due", doing:"In progress" };
+
+function advance(id){
+  const t = S.tasks.find(x=>x.id===id);
+  if(!t) return;
+
+  if(t.state === "doing"){ stop(); return; }
+
+  if(NEXT[t.state] === "doing"){
+    const busy = S.tasks.find(x=>x.state==="doing");
+    if(busy){ flash(`${busy.label} is running`); return; }
+    t.state = "doing";
+    S.timer = t.locked ? null : { id:t.id, startedAt:Date.now() };
+    buzz(12); save(); render(); return;
+  }
+
+  t.state = NEXT[t.state];
+  buzz(8); save(); render();
+}
+
+function stop(){
+  const t = S.tasks.find(x=>x.state==="doing");
+  if(!t){ S.timer = null; save(); render(); return; }
+  if(S.timer && S.timer.id === t.id && !t.locked){
+    const secs = Math.round((Date.now() - S.timer.startedAt) / 1000);
+    if(secs >= 5) t.lastRun = secs;           // ignore accidental taps
+  }
+  t.state = "inactive";
+  S.timer = null;
+  buzz(16); save(); render();
+}
+
+let flashTimer = null;
+function flash(msg){
+  const el = document.getElementById("brandsub");
+  el.textContent = msg;
+  el.style.color = "var(--hot)";
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(()=>{ el.style.color=""; renderSub(); }, 2600);
+}
+
+/* ═══════════ render ═══════════ */
+function renderSub(){
+  const due = S.tasks.filter(t=>t.state==="due").length;
+  document.getElementById("brandsub").textContent = due ? `${due} due` : "";
+}
+
+function renderFocus(){
+  const due = S.tasks.filter(t=>t.state==="due" || t.state==="doing");
+  const slots = due.slice(0,3);
+  document.getElementById("due-note").textContent =
+    due.length > 3 ? `${due.length - 3} waiting` : "";
+
+  const host = document.getElementById("focus-slots");
+  if(!slots.length){
+    host.innerHTML = `<div class="empty"><strong>Nothing due.</strong>
+      Mark a chore Due in Recurring and it shows up here.</div>`;
+  } else {
+    host.innerHTML = slots.map((t,i)=>`
+      <div class="card">
+        <div class="slot-n">${i+1}</div>
+        <div class="card-top">
+          <div class="card-label">${esc(t.label)}
+            ${t.category?`<div class="card-cat">${esc(t.category)}</div>`:""}
+          </div>
+        </div>
+        <div class="card-bottom">
+          <button class="pill ${t.state}" data-act="advance" data-id="${t.id}">${NAME[t.state]}</button>
+          ${badge(t)}
+        </div>
+      </div>`).join("");
+  }
+
+  const ex = document.getElementById("extras-list");
+  ex.innerHTML = S.extras.length
+    ? S.extras.map(e=>`
+        <div class="extra ${e.done?"done":""}" data-act="extra" data-id="${e.id}">
+          <div class="box ${e.done?"on":""}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="extra-text">${esc(e.text)}</div>
+        </div>`).join("")
+    : `<div class="empty">Rare one-offs go here.</div>`;
+
+  document.getElementById("clear-extras").style.visibility =
+    S.extras.some(e=>e.done) ? "visible" : "hidden";
+}
+
+function renderTasks(){
+  const host = document.getElementById("task-list");
+  document.getElementById("task-count").textContent =
+    S.tasks.length ? `${S.tasks.length}` : "";
+
+  if(!S.tasks.length){
+    host.innerHTML = `<div class="empty"><strong>No chores yet.</strong>
+      Add the ones you already do. Time them once and they stop being vague.</div>`;
+    return;
+  }
+
+  const groups = {};
+  S.tasks.forEach(t=>{ (groups[t.category || "Other"] ||= []).push(t); });
+
+  host.innerHTML = Object.entries(groups).map(([cat, list])=>`
+    <div class="section-head" style="padding-top:10px">
+      <div class="section-title">${esc(cat)}</div>
+    </div>
+    ${list.map(t=>`
+      <div class="card ${sel.has(t.id)?"sel":""}" data-act="row" data-id="${t.id}">
+        <div class="card-top">
+          <div class="card-label">${esc(t.label)}</div>
+        </div>
+        <div class="card-bottom">
+          <button class="pill ${t.state}" data-act="advance" data-id="${t.id}">${NAME[t.state]}</button>
+          ${badge(t)}
+        </div>
+      </div>`).join("")}
+  `).join("");
+}
+
+function renderRunning(){
+  const bar = document.getElementById("running");
+  const t = S.tasks.find(x=>x.state==="doing");
+  if(!t){ bar.classList.remove("on"); return; }
+  bar.classList.add("on");
+  document.getElementById("running-label").textContent = t.label;
+  const time = document.getElementById("running-time");
+  if(t.locked || !S.timer){ time.textContent = "—"; return; }
+  tickTime();
+}
+function tickTime(){
+  if(!S.timer) return;
+  const secs = Math.max(0, Math.round((Date.now() - S.timer.startedAt)/1000));
+  const m = Math.floor(secs/60), s = secs % 60;
+  document.getElementById("running-time").textContent = m + ":" + String(s).padStart(2,"0");
+}
+setInterval(()=>{ if(S.timer) tickTime(); }, 1000);
+
+function renderActionbar(){
+  const bar = document.getElementById("actionbar");
+  bar.classList.toggle("on", sel.size > 0);
+  document.getElementById("sel-n").textContent =
+    sel.size === 1 ? "1 selected" : `${sel.size} selected`;
+}
+
+function render(){
+  renderSub(); renderFocus(); renderTasks(); renderRunning(); renderActionbar();
+}
+
+/* ═══════════ tabs ═══════════ */
+let tab = "focus";
+function go(name){
+  tab = name;
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  document.getElementById("v-"+name).classList.add("on");
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===name));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll(".tab").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    if(b.dataset.tab !== "focus" && tab === "focus") history.pushState({tab:b.dataset.tab},"");
+    go(b.dataset.tab);
+  });
+});
+
+/* ═══════════ multi-select ═══════════ */
+const sel = new Set();
+let holdTimer = null, held = false;
+
+document.addEventListener("pointerdown", e=>{
+  const row = e.target.closest('[data-act="row"]');
+  if(!row) return;
+  held = false;
+  holdTimer = setTimeout(()=>{
+    held = true;
+    buzz(22);
+    if(!sel.size) history.pushState({sel:true},"");
+    sel.add(row.dataset.id);
+    render();
+  }, 430);
+});
+["pointerup","pointercancel","pointermove"].forEach(ev=>
+  document.addEventListener(ev, ()=> clearTimeout(holdTimer))
+);
+
+function clearSel(){ sel.clear(); render(); }
+
+document.getElementById("sel-del").addEventListener("click", ()=>{
+  if(!confirm(`Delete ${sel.size}?`)) return;
+  S.tasks = S.tasks.filter(t=>!sel.has(t.id));
+  if(S.timer && !S.tasks.some(t=>t.id===S.timer.id)) S.timer = null;
+  sel.clear(); save(); render();
+});
+
+/* ═══════════ sheet ═══════════ */
+const sheet = document.getElementById("sheet"), scrim = document.getElementById("scrim");
+let sheetOpen = false;
+
+function openSheet(html){
+  sheet.innerHTML = '<div class="grip"></div>' + html;
+  scrim.classList.add("on");
+  requestAnimationFrame(()=> sheet.classList.add("on"));
+  if(!sheetOpen) history.pushState({sheet:true},"");
+  sheetOpen = true;
+  const f = sheet.querySelector("input");
+  if(f) setTimeout(()=>f.focus(), 160);
+}
+function closeSheet(){
+  sheet.classList.remove("on"); scrim.classList.remove("on"); sheetOpen = false;
+}
+scrim.addEventListener("click", ()=>history.back());
+
+function editSheet(id){
+  const t = S.tasks.find(x=>x.id===id); if(!t) return;
+  const mins = t.lastRun ? Math.round(t.lastRun/60) : "";
+  openSheet(`
+    <h2>${esc(t.label)}</h2>
+    <div class="sub">Type how long it takes, or leave it and let the clock find out.</div>
+    <div class="field">
+      <input id="e-min" type="number" inputmode="numeric" placeholder="Minutes" value="${mins}">
+      <span class="unit">min</span>
+    </div>
+    <button class="sheet-btn primary" data-act="save-time" data-id="${t.id}">Save time</button>
+    ${t.locked ? "" : `<button class="sheet-btn" data-act="lock" data-id="${t.id}">Lock this time</button>`}
+    <button class="sheet-btn warn" data-act="del-task" data-id="${t.id}">Delete chore</button>
+  `);
+}
+
+/* ═══════════ actions ═══════════ */
+document.addEventListener("click", e=>{
+  const el = e.target.closest("[data-act]");
+  if(!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+
+  if(act === "row"){
+    if(held){ held = false; return; }
+    if(sel.size){                         // in selection mode, tap toggles
+      sel.has(id) ? sel.delete(id) : sel.add(id);
+      if(!sel.size) history.back(); else render();
+      return;
+    }
+    if(e.target.closest(".pill") || e.target.closest(".dur")) return;
+    editSheet(id); return;
+  }
+
+  if(act === "advance"){ e.stopPropagation(); advance(id); return; }
+  if(act === "edit"){ e.stopPropagation(); editSheet(id); return; }
+
+  if(act === "extra"){
+    const x = S.extras.find(v=>v.id===id); if(!x) return;
+    x.done = !x.done; buzz(8); save(); render(); return;
+  }
+
+  if(act === "save-time"){
+    const t = S.tasks.find(x=>x.id===id);
+    const v = parseInt(document.getElementById("e-min").value, 10);
+    if(t && v > 0) t.lastRun = v * 60;
+    history.back(); save(); render(); return;
+  }
+  if(act === "lock"){
+    if(!confirm("Lock is permanent. The clock never runs for this chore again.")) return;
+    const t = S.tasks.find(x=>x.id===id);
+    const v = parseInt(document.getElementById("e-min").value, 10);
+    if(t){
+      if(v > 0) t.lastRun = v * 60;
+      if(t.lastRun > 0) t.locked = true;
+      else { flash("Set a time first"); return; }
+    }
+    history.back(); save(); render(); return;
+  }
+  if(act === "del-task"){
+    if(!confirm("Delete this chore?")) return;
+    S.tasks = S.tasks.filter(x=>x.id!==id);
+    if(S.timer && S.timer.id === id) S.timer = null;
+    history.back(); save(); render(); return;
+  }
+});
+
+document.getElementById("running-stop").addEventListener("click", stop);
+
+/* composers */
+function addTask(){
+  const inp = document.getElementById("task-input");
+  const v = inp.value.trim(); if(!v) return;
+  S.tasks.push({ id:uid(), label:v, category:pickedCat, state:"inactive", lastRun:0, locked:false });
+  inp.value = ""; buzz(10); save(); render(); inp.focus();
+}
+function addExtra(){
+  const inp = document.getElementById("extra-input");
+  const v = inp.value.trim(); if(!v) return;
+  S.extras.push({ id:uid(), text:v, done:false });
+  inp.value = ""; buzz(10); save(); render(); inp.focus();
+}
+document.getElementById("task-send").addEventListener("click", addTask);
+document.getElementById("extra-send").addEventListener("click", addExtra);
+document.addEventListener("keydown", e=>{
+  if(e.key !== "Enter") return;
+  if(e.target.id === "task-input"){ e.preventDefault(); addTask(); }
+  if(e.target.id === "extra-input"){ e.preventDefault(); addExtra(); }
+});
+
+document.getElementById("clear-extras").addEventListener("click", ()=>{
+  S.extras = S.extras.filter(e=>!e.done);
+  save(); render();
+});
+
+/* category picker */
+let pickedCat = CATS[0];
+(function buildCats(){
+  const row = document.getElementById("catrow");
+  row.innerHTML = CATS.map(c=>`<button class="cat" data-cat="${c}">${c}</button>`).join("");
+  row.addEventListener("click", e=>{
+    const b = e.target.closest("[data-cat]"); if(!b) return;
+    pickedCat = b.dataset.cat;
+    row.querySelectorAll(".cat").forEach(x=>x.classList.toggle("on", x===b));
+  });
+  row.querySelector(".cat").classList.add("on");
+})();
+
+/* ═══════════ back navigation ═══════════ */
+window.addEventListener("popstate", ()=>{
+  if(sheetOpen)  return closeSheet();
+  if(sel.size)   return clearSel();
+  if(tab !== "focus") return go("focus");
+});
+
+/* ═══════════ settings ═══════════ */
+document.getElementById("s-export").addEventListener("click", ()=>{
+  const out = {};
+  for(const k of Object.keys(localStorage))
+    if(k.startsWith(PREFIX)) out[k] = localStorage.getItem(k);
+  const blob = new Blob([JSON.stringify({ app:APP, ts:Date.now(), data:out }, null, 2)],
+                        {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fractal-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById("s-restore").addEventListener("click", ()=>{
+  if(!confirm("Restore replaces everything in Fractal. Continue?")) return;
+  document.getElementById("s-file").click();
+});
+document.getElementById("s-file").addEventListener("change", e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const { app, data } = JSON.parse(r.result);
+      if(app !== APP){ alert("That file belongs to another app."); return; }
+      Object.keys(localStorage).filter(k=>k.startsWith(PREFIX))
+        .forEach(k=>localStorage.removeItem(k));
+      for(const [k,v] of Object.entries(data)) localStorage.setItem(k, v);
+      load(); render();
+      alert("Restored.");
+    }catch{ alert("Could not read that file."); }
+  };
+  r.readAsText(f);
+  e.target.value = "";
+});
+
+document.getElementById("s-update").addEventListener("click", async ()=>{
+  try{
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r=>r.unregister()));
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k=>k.startsWith(APP)).map(k=>caches.delete(k)));
+  }catch{}
+  location.reload();
+});
+
+document.getElementById("s-purge-extras").addEventListener("click", ()=>{
+  if(!confirm("Delete all extras?")) return;
+  S.extras = []; save(); render();
+});
+document.getElementById("s-purge-all").addEventListener("click", ()=>{
+  if(!confirm("Delete every chore, duration and extra?")) return;
+  if(!confirm("This cannot be undone. Sure?")) return;
+  S = blank(); save(); render();
+});
+
+/* ═══════════ boot ═══════════ */
+load();
+render();
+try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch{}
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>
+    navigator.serviceWorker.register("sw.js", { updateViaCache:"none" }).catch(()=>{})
+  );
+}
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) render(); });
+</script>
+</body>
+</html>
